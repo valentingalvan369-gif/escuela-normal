@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Misterio del Narrador Perdido</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; /* Fondo oscuro */
+            color: #c9d1d9; /* Texto claro */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background-color: #161b22;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        .input-area, .story-parts {
+            background-color: #0d1117;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #30363d;
+        }
+        .text-area {
+            min-height: 200px;
+            background-color: #21262d;
+            border: 1px solid #30363d;
+            color: #f0f6fc;
+            padding: 10px;
+            border-radius: 0.375rem;
+        }
+        .gemini-button {
+            transition: all 0.2s;
+        }
+        .gemini-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(35, 134, 54, 0.4);
+        }
+        .story-parts-display {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+        .part-card {
+            background-color: #21262d;
+            border: 1px solid #484f58;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            word-break: break-word;
+        }
+        .part-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 10px rgba(66, 153, 225, 0.4);
+        }
+        .tooltip {
+            position: absolute;
+            background-color: #fff;
+            color: #161b22;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .part-card:hover .tooltip {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container rounded-xl p-6 md:p-10">
+        <header class="mb-6 border-b border-gray-700 pb-4">
+            <h1 class="text-4xl font-extrabold text-blue-400 text-center">El Misterio del Narrador Perdido</h1>
+            <p class="text-center mt-2 text-gray-400">¡Actividad lúdica! Genera tres pistas inconexas sobre una historia. Tu misión es unirlas en el cuadro final para crear un relato coherente.</p>
+        </header>
+
+        <section id="controls" class="mb-8">
+            <div class="input-area">
+                <h2 class="text-2xl font-bold mb-3 text-white">1. Generar Pistas Incoherentes</h2>
+                <label for="topicInput" class="block mb-2 text-sm font-medium text-gray-300">Tema base de la historia (Ej: Un viaje, un crimen, un tesoro):</label>
+                <input type="text" id="topicInput" placeholder="Introduce el tema..." class="w-full p-2.5 mb-4 text-gray-900 bg-gray-100 rounded-lg border border-gray-600 focus:ring-blue-500 focus:border-blue-500">
+
+                <button id="generateBtn" class="gemini-button w-full bg-green-600 text-white font-semibold py-3 rounded-lg flex items-center justify-center hover:bg-green-700 disabled:opacity-50" onclick="generateStoryParts()">
+                    <svg id="loader" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generar 3 Fragmentos de Misterio
+                </button>
+            </div>
+        </section>
+
+        <section id="partsSection" class="mb-8 hidden">
+            <h2 class="text-2xl font-bold mb-3 text-white">2. Fragmentos del Narrador Perdido</h2>
+            <p class="text-sm text-gray-400 mb-4">Haz clic en los fragmentos para copiarlos al borrador. ¡Combínalos para crear una historia coherente!</p>
+            <div id="storyPartsDisplay" class="story-parts-display">
+                <!-- Cards for parts will be inserted here -->
+            </div>
+        </section>
+
+        <section id="editorSection">
+            <h2 class="text-2xl font-bold mb-3 text-white">3. Tu Borrador y Solución</h2>
+            <div class="input-area p-4">
+                <textarea id="storyEditor" class="text-area w-full focus:ring-blue-500 focus:border-blue-500" placeholder="Escribe tu historia aquí. Usa los fragmentos generados para unirlos en un solo relato lógico."></textarea>
+                <button onclick="clearEditor()" class="mt-3 bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700">Limpiar Borrador</button>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=";
+        const loader = document.getElementById('loader');
+        const generateBtn = document.getElementById('generateBtn');
+        const topicInput = document.getElementById('topicInput');
+        const storyPartsDisplay = document.getElementById('storyPartsDisplay');
+        const storyEditor = document.getElementById('storyEditor');
+        const partsSection = document.getElementById('partsSection');
+
+        // Función auxiliar para codificar Base64
+        function base64ToArrayBuffer(base64) {
+            const binary_string = window.atob(base64);
+            const len = binary_string.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binary_string.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        // Función para agregar texto al editor
+        function appendToEditor(text) {
+            storyEditor.value += text + "\n\n";
+            storyEditor.scrollTop = storyEditor.scrollHeight;
+            alertMessage('Fragmento copiado al borrador.', 'bg-blue-500');
+        }
+
+        // Función para limpiar el editor
+        function clearEditor() {
+            storyEditor.value = '';
+            alertMessage('Borrador limpiado.', 'bg-red-500');
+        }
+
+        // Función para mostrar mensajes temporales (reemplaza alert())
+        function alertMessage(message, colorClass) {
+            const messageBox = document.createElement('div');
+            messageBox.textContent = message;
+            messageBox.className = `fixed top-5 right-5 p-4 rounded-lg shadow-xl text-white ${colorClass} transition-opacity duration-300 z-50`;
+            document.body.appendChild(messageBox);
+
+            setTimeout(() => {
+                messageBox.style.opacity = '0';
+                setTimeout(() => messageBox.remove(), 300);
+            }, 3000);
+        }
+
+        // Función para manejar las llamadas a la API con backoff exponencial
+        async function fetchWithBackoff(url, options, maxRetries = 5) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.status === 429) {
+                        // Too Many Requests (handle throttling)
+                        throw new Error('Throttled');
+                    }
+                    if (!response.ok) {
+                        const errorBody = await response.text();
+                        throw new Error(`API Error: ${response.status} - ${errorBody}`);
+                    }
+                    return response;
+                } catch (error) {
+                    if (error.message !== 'Throttled' || i === maxRetries - 1) {
+                        console.error('Fetch error:', error);
+                        throw error;
+                    }
+                    const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+        async function generateStoryParts() {
+            const topic = topicInput.value.trim();
+            if (!topic) {
+                alertMessage("Por favor, introduce un tema base.", "bg-yellow-500");
+                return;
+            }
+
+            // Limpia el contenido anterior y muestra la sección
+            storyPartsDisplay.innerHTML = '';
+            partsSection.classList.remove('hidden');
+            loader.classList.remove('hidden');
+            generateBtn.disabled = true;
+            generateBtn.textContent = 'Generando Pistas...';
+
+            const userPrompt = `Genera un arreglo JSON de exactamente 3 objetos. Cada objeto debe contener una pista completamente inconexa y absurda sobre una misma historia basada en el tema: '${topic}'. Las pistas deben ser muy diferentes en género (una de ciencia ficción, una de novela negra, una medieval, etc.) y no deben tener conexión lógica aparente. Cada pista debe tener entre 15 y 25 palabras.`;
+
+            const systemPrompt = "Actúa como un generador de fragmentos de historia aleatorios. Siempre responde en formato JSON Array y en español, asegurando que los 3 fragmentos sean incoherentes entre sí, pero relacionados temáticamente con la petición.";
+            
+            const payload = {
+                contents: [{ parts: [{ text: userPrompt }] }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                "fragment": { "type": "STRING", description: "El fragmento de historia incoherente." }
+                            }
+                        }
+                    }
+                }
+            };
+
+            try {
+                const response = await fetchWithBackoff(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (!jsonText) {
+                    throw new Error("Respuesta del modelo vacía o incompleta.");
+                }
+
+                const parts = JSON.parse(jsonText);
+                
+                if (parts.length === 3) {
+                    renderStoryParts(parts);
+                    alertMessage("¡Fragmentos generados! Ahora, a unir el misterio.", "bg-green-600");
+                } else {
+                    throw new Error("El modelo no devolvió 3 fragmentos válidos.");
+                }
+
+            } catch (error) {
+                console.error("Error al generar los fragmentos:", error);
+                alertMessage("Error al conectar con la IA. Inténtalo de nuevo.", "bg-red-600");
+                storyPartsDisplay.innerHTML = `<p class="text-red-400">Hubo un error al generar los fragmentos. Por favor, inténtalo de nuevo.</p>`;
+            } finally {
+                loader.classList.add('hidden');
+                generateBtn.disabled = false;
+                generateBtn.textContent = 'Generar 3 Fragmentos de Misterio';
+            }
+        }
+
+        function renderStoryParts(parts) {
+            storyPartsDisplay.innerHTML = '';
+            parts.forEach((item, index) => {
+                const fragment = item.fragment || 'Fragmento no disponible.';
+                const card = document.createElement('div');
+                card.className = 'part-card relative';
+                card.innerHTML = `
+                    <p class="text-sm font-light italic text-gray-300 mb-2">Fragmento #${index + 1}</p>
+                    <p class="text-white text-base">${fragment}</p>
+                    <span class="tooltip absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-blue-600 px-2 py-1 text-xs rounded">Clic para copiar</span>
+                `;
+                card.onclick = () => appendToEditor(fragment);
+                storyPartsDisplay.appendChild(card);
+            });
+        }
+    </script>
+
+</body>
+</html>
